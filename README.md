@@ -1,6 +1,6 @@
 # GoPro Fusion Stitcher
 
-[![build](https://github.com/USERNAME/REPO/actions/workflows/build.yml/badge.svg)](https://github.com/USERNAME/REPO/actions/workflows/build.yml)
+[![build](https://github.com/bangadrum/goprofusionstitcher/actions/workflows/build.yml/badge.svg)](https://github.com/bangadrum/goprofusionstitcher/actions/workflows/build.yml)
 
 A small macOS app that stitches raw GoPro Fusion `GPFR####.MP4` / `GPBK####.MP4`
 front+back fisheye video pairs into a single equirectangular (360°) video you
