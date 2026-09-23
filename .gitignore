@@ -1,0 +1,21 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# App bundle produced by Scripts/make_app_bundle.sh
+/GoPro Fusion Stitcher.app
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
