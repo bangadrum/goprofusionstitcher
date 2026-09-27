@@ -50,7 +50,7 @@ enum StitchFilterGraph {
     }
 
     private static func eyeFilter(
-        inputLabel: String, radius: Int, center: (x: Int, y: Int),
+        inputLabel: String, radius: Int, center: FisheyePoint,
         frameW: Int, frameH: Int, yaw: Int,
         outputWidth: Int, outputHeight: Int, interpolation: String, outLabel: String
     ) -> String {
