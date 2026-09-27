@@ -1,5 +1,13 @@
 import Foundation
 
+/// A simple integer point. Used instead of a bare `(x: Int, y: Int)` tuple
+/// because tuples aren't nominally `Equatable`, which would otherwise block
+/// `CameraMode`'s synthesized `Equatable` conformance below.
+struct FisheyePoint: Equatable {
+    let x: Int
+    let y: Int
+}
+
 /// Describes the fisheye circle geometry for one Fusion capture mode.
 ///
 /// Values are taken from Trek View's "Stitching GoPro Fusion Images Without
@@ -13,11 +21,11 @@ struct CameraMode: Equatable {
 
     /// Fisheye circle radius (px) and center (px) for the front (GPFR) eye.
     let frontRadius: Int
-    let frontCenter: (x: Int, y: Int)
+    let frontCenter: FisheyePoint
 
     /// Fisheye circle radius (px) and center (px) for the back (GPBK) eye.
     let backRadius: Int
-    let backCenter: (x: Int, y: Int)
+    let backCenter: FisheyePoint
 
     /// Horizontal/vertical field of view of each lens, in degrees.
     /// The Fusion's two lenses are ~190° each, giving a 5° overlap on each seam.
@@ -31,16 +39,16 @@ struct CameraMode: Equatable {
 
     static let video5_2k = CameraMode(
         frameWidth: 2704, frameHeight: 2624,
-        frontRadius: 1335, frontCenter: (1345, 1303),
-        backRadius: 1338, backCenter: (1337, 1303),
+        frontRadius: 1335, frontCenter: FisheyePoint(x: 1345, y: 1303),
+        backRadius: 1338, backCenter: FisheyePoint(x: 1337, y: 1303),
         recommendedOutputWidth: 3840,
         label: "5.2K video (2704×2624 per eye)"
     )
 
     static let video3k = CameraMode(
         frameWidth: 1568, frameHeight: 1504,
-        frontRadius: 765, frontCenter: (779, 742),
-        backRadius: 765, backCenter: (779, 742),
+        frontRadius: 765, frontCenter: FisheyePoint(x: 779, y: 742),
+        backRadius: 765, backCenter: FisheyePoint(x: 779, y: 742),
         recommendedOutputWidth: 3072,
         label: "3K video (1568×1504 per eye)"
     )
