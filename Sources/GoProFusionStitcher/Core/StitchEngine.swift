@@ -86,8 +86,33 @@ final class StitchEngine {
         let outH = settings.outputHeight(for: mode)
         let mask = try maskURL(outputWidth: outW, outputHeight: outH, blendDegrees: settings.blendDegrees)
 
+        // Read any previously-cached calibration synchronously first, since
+        // the async store below (needed to publish to the UI safely) isn't
+        // guaranteed to land before we need the value a few lines down.
+        var effectiveCalibratedOffset = clip.calibratedYawOffset
+
+        if settings.autoCalibrateSeam, effectiveCalibratedOffset == nil {
+            clip.appendLog("Calibrating seam alignment…")
+            do {
+                let result = try SeamCalibrator.calibrate(clip: clip, mode: mode)
+                effectiveCalibratedOffset = result.yawOffsetDegrees
+                DispatchQueue.main.async {
+                    clip.calibratedYawOffset = result.yawOffsetDegrees
+                    clip.calibrationScore = result.score
+                }
+                clip.appendLog(String(
+                    format: "Seam calibration: %.1f° correction (SSIM %.3f)",
+                    result.yawOffsetDegrees, result.score
+                ))
+            } catch {
+                clip.appendLog("⚠️ Seam calibration failed, using uncorrected yaw=180: \(error.localizedDescription)")
+            }
+        }
+        let totalYawOffset = (effectiveCalibratedOffset ?? 0) + settings.manualYawFineTune
+
         let filterGraph = StitchFilterGraph.build(
-            mode: mode, outputWidth: outW, outputHeight: outH, interpolation: settings.interpolation
+            mode: mode, outputWidth: outW, outputHeight: outH,
+            interpolation: settings.interpolation, backYawOffsetDegrees: totalYawOffset
         )
 
         let outputFolder = settings.outputFolder ?? clip.frontURL.deletingLastPathComponent()
