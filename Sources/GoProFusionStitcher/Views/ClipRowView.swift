@@ -37,8 +37,12 @@ struct ClipRowView: View {
     private var subtitle: String {
         var parts: [String] = [clip.frontURL.lastPathComponent, clip.backURL.lastPathComponent]
         if let mode = clip.mode { parts.append(mode.label) }
-        if let offset = clip.calibratedYawOffset {
-            parts.append(String(format: "seam %+.1f°", offset))
+        if let applied = clip.calibrationApplied {
+            if applied, let offset = clip.calibratedYawOffset {
+                parts.append(String(format: "seam %+.1f°", offset))
+            } else {
+                parts.append("seam: uncorrected (low confidence)")
+            }
         }
         return parts.joined(separator: "  ·  ")
     }
