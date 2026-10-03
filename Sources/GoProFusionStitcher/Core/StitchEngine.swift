@@ -92,18 +92,26 @@ final class StitchEngine {
         var effectiveCalibratedOffset = clip.calibratedYawOffset
 
         if settings.autoCalibrateSeam, effectiveCalibratedOffset == nil {
-            clip.appendLog("Calibrating seam alignment…")
+            clip.appendLog("Calibrating seam alignment (averaged over \(SeamCalibrator.testFractions.count) frames)…")
             do {
                 let result = try SeamCalibrator.calibrate(clip: clip, mode: mode)
                 effectiveCalibratedOffset = result.yawOffsetDegrees
                 DispatchQueue.main.async {
                     clip.calibratedYawOffset = result.yawOffsetDegrees
                     clip.calibrationScore = result.score
+                    clip.calibrationApplied = result.applied
                 }
-                clip.appendLog(String(
-                    format: "Seam calibration: %.1f° correction (SSIM %.3f)",
-                    result.yawOffsetDegrees, result.score
-                ))
+                if result.applied {
+                    clip.appendLog(String(
+                        format: "Seam calibration: %.1f° correction applied (SSIM %.3f vs %.3f uncorrected)",
+                        result.yawOffsetDegrees, result.score, result.baselineScore
+                    ))
+                } else {
+                    clip.appendLog(String(
+                        format: "Seam calibration: no confident correction found (best %.3f vs %.3f uncorrected) — keeping yaw=180",
+                        result.score, result.baselineScore
+                    ))
+                }
             } catch {
                 clip.appendLog("⚠️ Seam calibration failed, using uncorrected yaw=180: \(error.localizedDescription)")
             }
