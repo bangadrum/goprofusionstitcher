@@ -26,7 +26,15 @@ enum StitchFilterGraph {
 
     /// The full filter_complex string. Inputs are assumed to be, in order:
     ///   0: front video, 1: back video, 2: blend mask image (looped still).
-    static func build(mode: CameraMode, outputWidth: Int, outputHeight: Int, interpolation: String) -> String {
+    ///
+    /// `backYawOffsetDegrees` nudges the back eye's yaw away from the
+    /// nominal 180°, to correct for this specific camera's lens
+    /// calibration (see `SeamCalibrator`) and/or a manual fine-tune the
+    /// user dials in. 0 reproduces the original fixed yaw=180 behavior.
+    static func build(
+        mode: CameraMode, outputWidth: Int, outputHeight: Int,
+        interpolation: String, backYawOffsetDegrees: Double = 0
+    ) -> String {
         let front = eyeFilter(
             inputLabel: "0:v", radius: mode.frontRadius, center: mode.frontCenter,
             frameW: mode.frameWidth, frameH: mode.frameHeight,
@@ -36,7 +44,8 @@ enum StitchFilterGraph {
         let back = eyeFilter(
             inputLabel: "1:v", radius: mode.backRadius, center: mode.backCenter,
             frameW: mode.frameWidth, frameH: mode.frameHeight,
-            yaw: 180, outputWidth: outputWidth, outputHeight: outputHeight,
+            yaw: SeamCalibrator.wrappedYaw(180 + backYawOffsetDegrees),
+            outputWidth: outputWidth, outputHeight: outputHeight,
             interpolation: interpolation, outLabel: "back"
         )
 
@@ -51,7 +60,7 @@ enum StitchFilterGraph {
 
     private static func eyeFilter(
         inputLabel: String, radius: Int, center: FisheyePoint,
-        frameW: Int, frameH: Int, yaw: Int,
+        frameW: Int, frameH: Int, yaw: Double,
         outputWidth: Int, outputHeight: Int, interpolation: String, outLabel: String
     ) -> String {
         let cropSize = 2 * radius
