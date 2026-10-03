@@ -34,9 +34,12 @@ final class Clip: Identifiable, ObservableObject, Equatable, Hashable {
     @Published var log: String = ""
 
     /// Seam yaw correction found by `SeamCalibrator`, in degrees. nil until
-    /// calibration has run (or if auto-calibration is disabled).
+    /// calibration has run (or if auto-calibration is disabled). 0 with
+    /// `calibrationApplied == false` means calibration ran but found no
+    /// change confident enough to trust (kept uncorrected on purpose).
     @Published var calibratedYawOffset: Double?
     @Published var calibrationScore: Double?
+    @Published var calibrationApplied: Bool?
 
     init(frontURL: URL, backURL: URL, takeNumber: String) {
         self.frontURL = frontURL
