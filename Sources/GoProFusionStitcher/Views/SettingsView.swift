@@ -57,6 +57,26 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Seam alignment") {
+                Toggle("Auto-calibrate seam (pixel matching)", isOn: $settings.autoCalibrateSeam)
+                Text("Before stitching, pixel-matches the overlap band at both seams to correct this camera's specific lens calibration — fixes a consistent seam offset, but not ghosting from subjects close to the camera near the seam (that's parallax, a different problem this can't fix).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Manual fine-tune")
+                        Spacer()
+                        Text("\(settings.manualYawFineTune >= 0 ? "+" : "")\(settings.manualYawFineTune, specifier: "%.1f")°")
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $settings.manualYawFineTune, in: -5...5, step: 0.1)
+                }
+                Text("Stacks on top of auto-calibration. Nudge this if a seam still looks off after calibrating — watch a clip's log for the detected offset.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Metadata") {
                 Toggle("Embed spherical (360°) metadata", isOn: $settings.embedSphericalMetadata)
                 Text("Tags the output so Resolve, QuickTime, and other 360 players recognize it automatically. Requires exiftool (`brew install exiftool`); safe to leave on even if it's not installed — stitching still succeeds.")
