@@ -14,22 +14,44 @@ import Foundation
 ///
 /// This is a *global calibration* fix, not a parallax fix: it searches for
 /// a single yaw rotation of the back eye that best aligns the two overlap
-/// bands (scored by SSIM, ffmpeg's structural similarity filter), using one
-/// representative frame. It will not remove ghosting caused by subjects
-/// close to the camera near the seam — that's parallax (the two lenses are
-/// physically offset by a few centimeters), and fixing *that* requires
-/// per-frame optical-flow-based seam warping, which is a different, much
-/// larger undertaking than this app currently does.
+/// bands. It will not remove ghosting caused by subjects close to the
+/// camera near the seam — that's parallax (the two lenses are physically
+/// offset by a few centimeters), and fixing *that* requires per-frame
+/// optical-flow-based seam warping, a different, much larger undertaking
+/// than this app currently does.
+///
+/// Robustness: a single test frame is an unreliable signal on low-light,
+/// grainy, or visually repetitive footage (e.g. a crowd of similarly-dressed
+/// people at night) — the overlap band may not contain enough distinctive
+/// structure to pixel-match reliably, and a single-frame search can lock
+/// onto a spurious "best" offset that's actually worse than no correction
+/// at all. To guard against that, this samples several frames spread across
+/// the clip and averages their scores (a real calibration offset should
+/// help consistently across frames; noise-driven false peaks mostly don't),
+/// and only applies a correction if it beats the uncorrected baseline by a
+/// clear margin — otherwise it leaves yaw at the nominal 180° rather than
+/// risk making things worse.
 enum SeamCalibrator {
     static let searchRangeDegrees: ClosedRange<Double> = -5...5
     static let searchStepDegrees: Double = 0.5
     static let testWidth = 1600
     static let testHeight = 800
     static let bandPx = 50
+    /// Fractions of the clip's duration to sample, so a single noisy/dark
+    /// frame can't dominate the result.
+    static let testFractions: [Double] = [0.25, 0.5, 0.75]
+    /// Minimum relative SSIM improvement over the uncorrected (0°) baseline,
+    /// averaged across sampled frames, required before a correction is
+    /// trusted. Below this, we keep yaw=180 rather than apply a shaky result.
+    static let confidenceThreshold = 0.03
 
     struct Result {
         let yawOffsetDegrees: Double
         let score: Double
+        let baselineScore: Double
+        /// False if no correction cleared the confidence threshold, in
+        /// which case `yawOffsetDegrees` is 0 (uncorrected) by design.
+        let applied: Bool
     }
 
     static func calibrate(clip: Clip, mode: CameraMode) throws -> Result {
@@ -40,32 +62,49 @@ enum SeamCalibrator {
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
-        // Sample a frame a little into the clip (avoids any black frames at
-        // the very start) rather than frame zero.
-        let testTime = min(1.0, (clip.durationSeconds ?? 2) / 2)
+        let duration = clip.durationSeconds ?? 2
+        // Keep sample points comfortably inside the clip even if it's short.
+        let testTimes = testFractions.map { max(0.2, min(duration - 0.2, duration * $0)) }
 
-        let frontEq = workDir.appendingPathComponent("front.png")
-        try renderEyeStill(
-            ffmpeg: ffmpeg, source: clip.frontURL, time: testTime,
-            radius: mode.frontRadius, center: mode.frontCenter, yaw: 0, out: frontEq
-        )
+        var frontStills: [URL] = []
+        for (i, t) in testTimes.enumerated() {
+            let url = workDir.appendingPathComponent("front_\(i).png")
+            try renderEyeStill(
+                ffmpeg: ffmpeg, source: clip.frontURL, time: t,
+                radius: mode.frontRadius, center: mode.frontCenter, yaw: 0, out: url
+            )
+            frontStills.append(url)
+        }
 
-        var best = Result(yawOffsetDegrees: 0, score: -1)
+        // offset -> per-frame scores
+        var scoresByOffset: [Double: [Double]] = [:]
         var offset = searchRangeDegrees.lowerBound
         while offset <= searchRangeDegrees.upperBound {
-            let backEq = workDir.appendingPathComponent("back_\(offset).png")
-            try renderEyeStill(
-                ffmpeg: ffmpeg, source: clip.backURL, time: testTime,
-                radius: mode.backRadius, center: mode.backCenter,
-                yaw: wrappedYaw(180 + offset), out: backEq
-            )
-            let score = try seamSimilarity(ffmpeg: ffmpeg, frontEq: frontEq, backEq: backEq)
-            if score > best.score {
-                best = Result(yawOffsetDegrees: offset, score: score)
+            var scores: [Double] = []
+            for (i, t) in testTimes.enumerated() {
+                let backEq = workDir.appendingPathComponent("back_\(offset)_\(i).png")
+                try renderEyeStill(
+                    ffmpeg: ffmpeg, source: clip.backURL, time: t,
+                    radius: mode.backRadius, center: mode.backCenter,
+                    yaw: wrappedYaw(180 + offset), out: backEq
+                )
+                scores.append(try seamSimilarity(ffmpeg: ffmpeg, frontEq: frontStills[i], backEq: backEq))
             }
+            scoresByOffset[offset] = scores
             offset += searchStepDegrees
         }
-        return best
+
+        let averaged = scoresByOffset.mapValues { $0.reduce(0, +) / Double($0.count) }
+        let baseline = averaged[0] ?? -1
+        guard let best = averaged.max(by: { $0.value < $1.value }) else {
+            return Result(yawOffsetDegrees: 0, score: baseline, baselineScore: baseline, applied: false)
+        }
+
+        let relativeImprovement = baseline > 0 ? (best.value - baseline) / baseline : 0
+        if best.key == 0 || relativeImprovement < confidenceThreshold {
+            return Result(yawOffsetDegrees: 0, score: baseline, baselineScore: baseline, applied: false)
+        }
+        return Result(yawOffsetDegrees: best.key, score: best.value, baselineScore: baseline, applied: true)
     }
 
     /// v360's yaw parameter must stay within [-180, 180]; wrap anything
