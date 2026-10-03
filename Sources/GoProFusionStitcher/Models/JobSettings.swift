@@ -12,6 +12,15 @@ final class JobSettings: ObservableObject {
     @Published var outputFolder: URL? = nil
     @Published var interpolation: String = "cubic" // cubic | lanczos | linear
 
+    /// If true, each clip is pixel-matched once (via SeamCalibrator) to find
+    /// a global yaw correction for this specific camera's lens calibration,
+    /// before stitching. Does not address parallax/ghosting from subjects
+    /// close to the seam — only systematic misalignment.
+    @Published var autoCalibrateSeam: Bool = true
+    /// Additional manual yaw nudge (degrees), stacked on top of whatever
+    /// auto-calibration found (or used alone if auto-calibration is off).
+    @Published var manualYawFineTune: Double = 0
+
     func outputWidth(for mode: CameraMode) -> Int {
         customOutputWidth ?? mode.recommendedOutputWidth
     }
